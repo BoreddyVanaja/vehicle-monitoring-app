@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real time updates</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/realtime.css') }}">
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+    <h1 id="page-title">Real time Data</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Vehicle No.</th>
+                <th>Weight</th>
+                <th>Status</th>
+                <th>Last Updated at:</th>
+            </tr>
+        </thead>
+        <tbody id="vehicleTable">
+
+        </tbody>
+    </table>
+
+    <script src="{{ url_for('static', filename='js/realtime.js') }}"></script>
+</body>
+</html>

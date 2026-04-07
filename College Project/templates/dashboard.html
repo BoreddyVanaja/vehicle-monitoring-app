@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Vehicle Load Monitoring System</title>
+  <button onclick="downloadCSV()">Download Excel</button>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      background-color: #f5f5f5;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    table {
+      margin: auto;
+      border-collapse: collapse;
+      width: 80%;
+      background: white;
+    }
+
+    th,
+    td {
+      border: 1px solid black;
+      padding: 10px;
+    }
+
+    th {
+      background-color: #e0e0e0;
+    }
+
+    .overload {
+      color: red;
+      font-weight: bold;
+      background-color: #ffebee;
+    }
+
+    .normal {
+      color: green;
+    }
+
+    #count {
+      margin: 20px;
+      font-size: 20px;
+      font-weight: bold;
+      color: #d32f2f;
+    }
+
+    #status {
+      font-size: 22px;
+      margin: 10px;
+      font-weight: bold;
+    }
+
+    .chart-container {
+      width: 70%;
+      margin: auto;
+      margin-top: 40px;
+    }
+  </style>
+
+</head>
+
+<body>
+
+  <h1>🚚 Vehicle Load Monitoring Dashboard</h1>
+
+  <h2 id="status">Checking system...</h2>
+
+  <h3 id="count">Total Overloaded Vehicles: 0</h3>
+
+  <table>
+    <tr>
+      <th>Vehicle</th>
+      <th>Weight (g)</th>
+      <th>Status</th>
+      <th>Time</th>
+    </tr>
+    <tbody id="table"></tbody>
+  </table>
+
+  <div class="chart-container">
+    <canvas id="loadChart"></canvas>
+  </div>
+
+  <!-- 🔔 SOUND ALERT -->
+  <audio id="alarm" src="https://www.soundjay.com/button/beep-07.wav"></audio>
+
+
+  <script>
+
+    const apiURL = "http://127.0.0.1:5000/get_loads";
+
+    let chart;
+    let alertedVehicles = [];
+
+    async function loadData() {
+
+      try {
+
+        const response = await fetch(apiURL);
+        const data = await response.json();
+
+        console.log(data);
+
+        let table = document.getElementById("table");
+        table.innerHTML = "";
+
+        let labels = [];
+        let weights = [];
+        let overloadCount = 0;
+        let overloadExists = false;
+
+        data.forEach(item => {
+
+          let rowClass = "normal";
+
+          if (item.status === "OVERLOAD") {
+            rowClass = "overload";
+            overloadCount++;
+            overloadExists = true;
+          }
+
+          table.innerHTML += `
+      <tr class="${rowClass}">
+      <td>${item.vehicle_number}</td>
+      <td>${item.weight}</td>
+      <td>${item.status}</td>
+      <td>${item.timestamp}</td>
+      </tr>
+      `;
+
+          labels.push(item.vehicle_number);
+          weights.push(item.weight);
+
+        });
+
+        document.getElementById("status").innerText =
+          overloadExists ? "🚨 OVERLOAD PRESENT" : "✅ ALL VEHICLES NORMAL";
+
+        document.getElementById("count").innerText =
+          "Total Overloaded Vehicles: " + overloadCount;
+
+        updateChart(labels, weights);
+
+      } catch (error) {
+        console.log("Error fetching data:", error);
+      }
+
+    }
+
+    function updateChart(labels, weights) {
+
+      if (chart) {
+        chart.destroy();
+      }
+
+      const ctx = document.getElementById('loadChart');
+
+      chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Vehicle Load (kg)',
+            data: weights
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              display: true
+            }
+          }
+        }
+      });
+
+    }
+    function downloadCSV() {
+
+      let csv = "Vehicle,Weight,Status,Time\n";
+
+      document.querySelectorAll("#table tr").forEach(row => {
+        let cols = row.querySelectorAll("td");
+        if (cols.length) {
+          csv += `${cols[0].innerText},${cols[1].innerText},${cols[2].innerText},${cols[3].innerText}\n`;
+        }
+      });
+
+      let blob = new Blob([csv], { type: "text/csv" });
+      let url = URL.createObjectURL(blob);
+
+      let a = document.createElement("a");
+      a.href = url;
+      a.download = "vehicle_data.csv";
+      a.click();
+    }
+
+
+    /* AUTO REFRESH EVERY MINUTE */
+    setInterval(loadData, 60000);
+
+    loadData();
+
+  </script>
