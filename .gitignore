@@ -1,0 +1,15 @@
+# Firebase secret files
+firebase_credentials.json
+firebase_key.json
+*.json
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Environment files (optional)
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
