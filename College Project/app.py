@@ -13,6 +13,7 @@ import paho.mqtt.client as mqtt
 #Other imports
 from datetime import datetime
 import json
+import requests
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -20,43 +21,51 @@ CORS(app)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # MQTT CONFIG
-MQTT_BROKER = "broker.hivemq.com"   # or your broker
+MQTT_BROKER = "broker.hivemq.com" 
 MQTT_TOPIC = "esp32MyProject/data"
-timestamp = datetime.now()
-weight = 0.00
-status = "Normal"
-time_threshold = 2 #minutes
-weight_threshold = 40
+
+# ------------------ TELEGRAM CONFIG ------------------
+BOT_TOKEN = "8606618607:AAFj3axkB_iIHvV_3RiWj3Q2gfl6enoIe7k"
+CHAT_ID = "-5062317954"
+
+# Global variables
+status = "NORMAL"
 
 
 # ------------------ FIREBASE SETUP ------------------
 cred = credentials.Certificate("firebase_key.json")  # Ensure this JSON is in same folder
 firebase_admin.initialize_app(cred)
-# bot token
-BOT_TOKEN=" HTTP API:8606618607:AAFj3axkB_iIHvV_3RiWj3Q2gfl6enoIe7k"
-CHAT_ID="5718007268"
 
 # Firestore client
 db = firestore.client()
 
+def send_telegram_alert(message):
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": CHAT_ID,
+            "text": message
+        }
+        requests.post(url, data=payload)
+        print("Telegram alert sent!")
+    except Exception as e:
+        print("Telegram Error:", e)
+
 # When MQTT receives message
 def on_message(client, userdata, msg):
-    vehicle_number = ""
     data = json.loads(msg.payload.decode())
-    global timestamp, weight, status
+    global status
     print("MQTT Received:", data)
     curr_timestamp = datetime.now()
     data["timestamp"] = curr_timestamp.strftime("%Y-%m-%d %H:%M:%S")
-    query = db.collection("Vehicle numbers").where("device_id", "==", data["vehicle_number"]).get()
-    for i in query:
-        vehicle_number = i.get("vehicle_number")
-    data["vehicle_number"] = vehicle_number
-    if (curr_timestamp - timestamp).total_seconds() / 60 >= time_threshold or abs(weight - data["weight"]) >= weight_threshold or status != data["status"]:
-        db.collection("Vehicle data").add(data)
-        if (curr_timestamp - timestamp).total_seconds() / 60 >= time_threshold:
-            timestamp = curr_timestamp
-    weight = data["weight"]
-    status = data["status"]
+    if data["status"].upper() == "OVERLOAD" and status == "NORMAL":
+        db.collection("overloaded_vehicles").add(data)
+        send_telegram_alert(
+            f"🚨 OVERLOAD ALERT \nVehicle: {data['vehicle_number']}\nWeight: {data['weight']} kg"
+        )
+        
+
+    status = data["status"].upper()
 
     # Send to WebSocket clients
     socketio.emit('update', data)
@@ -82,19 +91,19 @@ def updates():
 
 @app.route('/get-vehicles')
 def get_vehicles():
-    docs = db.collection('Vehicle numbers').stream()
+    docs = db.collection('vehicle details').stream()
 
     data = []
     for doc in docs:
         d = doc.to_dict()
         data.append({
-            "vehicle_number": d.get("vehicle_number"),
+            "vehicle_number": d.get("number"),
             "weight": 0,
-            "status": "Normal",
+            "status": "NORMAL",
             "timestamp": ""
         })
 
-    return jsonify(data)   #  IMPORTANT
+    return jsonify(data)
 
 @app.route('/test')
 def test():
@@ -117,14 +126,24 @@ def add_load():
         # Add to Firestore collection
         db.collection("Vehicle data").add(data)
 
-        return jsonify({"status": "success", "message": "Data saved to Firestore"}), 200
+        # TELEGRAM ALERT
+        if data.get("status") == "OVERLOAD":
+            message = f"""OVERLOAD ALERT 
+
+                Vehicle: {data.get('vehicle_number')}
+                Weight: {data.get('weight')} kg
+                Time: {data.get('overload_time')}
+            """
+            send_telegram_alert(message)
+
+        return jsonify({"status": "success"}), 200
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/get_loads', methods=['GET'])
 def get_loads():
-    docs = db.collection('Vehicle data').stream()
+    docs = db.collection('overloaded_vehicles').stream()
 
     data = []
     for doc in docs:
@@ -140,4 +159,4 @@ def get_loads():
 
 # Run the server
 if __name__ == "__main__":
-    socketio.run(app, host='0.0.0.0', port=5000)
+    socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)

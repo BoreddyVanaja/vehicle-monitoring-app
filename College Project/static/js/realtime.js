@@ -9,7 +9,7 @@ async function populateTable() {
         response = await fetch(apiUrl)
         data = await response.json()
         data.forEach(row => {
-            const vehicle_number = row["vehicle_number"]
+            const vehicle_number = row["vehicle_number"]?.replaceAll(" ","").toLowerCase()
             tableElement.innerHTML += `
             <tr>
                 <td>${row["vehicle_number"]}</td>
@@ -27,7 +27,7 @@ async function populateTable() {
 populateTable();
 
 socket.on('update', (data) => {
-    const vehicle_number = data["vehicle_number"]
+    const vehicle_number = data["vehicle_number"].replaceAll(" ","").toLowerCase()
     console.log("Received:", data);
     document.getElementById(`${vehicle_number}_weight`).innerText = data.weight;
     document.getElementById(`${vehicle_number}_status`).innerText = data.status;
