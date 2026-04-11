@@ -3,8 +3,6 @@
 
 <head>
   <title>Vehicle Load Monitoring System</title>
-  <button onclick="downloadCSV()">Download Excel</button>
-
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -17,6 +15,29 @@
 
     h1 {
       color: #333;
+    }
+
+    .btn-container {
+      margin: 15px;
+    }
+
+    button {
+      padding: 10px 15px;
+      margin: 5px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      border-radius: 5px;
+    }
+
+    .download-btn {
+      background-color: #4CAF50;
+      color: white;
+    }
+
+    .delete-btn {
+      background-color: #f44336;
+      color: white;
     }
 
     table {
@@ -72,6 +93,12 @@
 
   <h1>🚚 Vehicle Load Monitoring Dashboard</h1>
 
+  <!-- BUTTONS -->
+  <div class="btn-container">
+    <button class="download-btn" onclick="downloadCSV()">Download Excel</button>
+    <button class="delete-btn" onclick="deleteLogs()">Delete All Logs</button>
+  </div>
+
   <h2 id="status">Checking system...</h2>
 
   <h3 id="count">Total Overloaded Vehicles: 0</h3>
@@ -93,13 +120,12 @@
   <!-- 🔔 SOUND ALERT -->
   <audio id="alarm" src="https://www.soundjay.com/button/beep-07.wav"></audio>
 
-
   <script>
 
     const apiURL = "http://127.0.0.1:5000/get_loads";
+    const deleteURL = "http://127.0.0.1:5000/delete_logs";
 
     let chart;
-    let alertedVehicles = [];
 
     async function loadData() {
 
@@ -107,8 +133,6 @@
 
         const response = await fetch(apiURL);
         const data = await response.json();
-
-        console.log(data);
 
         let table = document.getElementById("table");
         table.innerHTML = "";
@@ -120,27 +144,33 @@
 
         data.forEach(item => {
 
-          let rowClass = "normal";
-
           if (item.status === "OVERLOAD") {
-            rowClass = "overload";
+
             overloadCount++;
             overloadExists = true;
+
+            table.innerHTML += `
+            <tr class="overload">
+              <td>${item.vehicle_number}</td>
+              <td>${item.weight * 1000}</td>
+              <td>${item.status}</td>
+              <td>${item.timestamp}</td>
+            </tr>
+            `;
+
+            labels.push(item.vehicle_number);
+            weights.push(item.weight * 1000);
           }
 
-          table.innerHTML += `
-      <tr class="${rowClass}">
-      <td>${item.vehicle_number}</td>
-      <td>${item.weight}</td>
-      <td>${item.status}</td>
-      <td>${item.timestamp}</td>
-      </tr>
-      `;
-
-          labels.push(item.vehicle_number);
-          weights.push(item.weight);
-
         });
+
+        if (!overloadExists) {
+          table.innerHTML = `
+            <tr>
+              <td colspan="4" class="normal">No overloaded vehicles 🎉</td>
+            </tr>
+          `;
+        }
 
         document.getElementById("status").innerText =
           overloadExists ? "🚨 OVERLOAD PRESENT" : "✅ ALL VEHICLES NORMAL";
@@ -169,7 +199,7 @@
         data: {
           labels: labels,
           datasets: [{
-            label: 'Vehicle Load (kg)',
+            label: 'Vehicle Load (grams)',
             data: weights
           }]
         },
@@ -184,9 +214,10 @@
       });
 
     }
+
     function downloadCSV() {
 
-      let csv = "Vehicle,Weight,Status,Time\n";
+      let csv = "Vehicle,Weight(g),Status,Time\n";
 
       document.querySelectorAll("#table tr").forEach(row => {
         let cols = row.querySelectorAll("td");
@@ -204,10 +235,36 @@
       a.click();
     }
 
+    // DELETE LOGS FUNCTION
+    async function deleteLogs() {
 
-    /* AUTO REFRESH EVERY MINUTE */
+      let confirmDelete = confirm("Are you sure you want to delete all logs?");
+
+      if (!confirmDelete) return;
+
+      try {
+        const response = await fetch(deleteURL, {
+          method: "DELETE"
+        });
+
+        const result = await response.json();
+
+        alert(result.message || "Logs deleted successfully");
+
+        loadData(); // refresh dashboard
+
+      } catch (error) {
+        console.log("Error deleting logs:", error);
+      }
+    }
+
+    // AUTO REFRESH EVERY MINUTE
     setInterval(loadData, 60000);
 
     loadData();
 
   </script>
+
+</body>
+
+</html>
