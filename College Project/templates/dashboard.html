@@ -152,14 +152,14 @@
             table.innerHTML += `
             <tr class="overload">
               <td>${item.vehicle_number}</td>
-              <td>${item.weight * 1000}</td>
+              <td>${item.weight * 1}</td>
               <td>${item.status}</td>
               <td>${item.timestamp}</td>
             </tr>
             `;
 
             labels.push(item.vehicle_number);
-            weights.push(item.weight * 1000);
+            weights.push(item.weight * 1);
           }
 
         });
